@@ -8,7 +8,7 @@ test:
     - go env -w GOPRIVATE="git.foxminded.ua/foxstudent106264/"
     - git config --global url."https://foxstudent106264:glpat-8gAAzoSsg5R9Stocdz1-@gitlab.com".insteadOf "https://gitlab.com"
     - git config --global url."https://foxstudent106264:glpat-8gAAzoSsg5R9Stocdz1-@git.foxminded.ua".insteadOf "https://git.foxminded.ua"
-    - go get git.foxminded.ua/foxstudent106264/tgapi@latest
+    - go get git.foxminded.ua/foxstudent106264/tgapi@dev
     - go test -v ./...
     - go vet ./...
     - go install honnef.co/go/tools/cmd/staticcheck@latest
@@ -26,6 +26,6 @@ test:golangci-lint:
     - go env -w GOPRIVATE="git.foxminded.ua/foxstudent106264/"
     - git config --global url."https://foxstudent106264:glpat-8gAAzoSsg5R9Stocdz1-@gitlab.com".insteadOf "https://gitlab.com"
     - git config --global url."https://foxstudent106264:glpat-8gAAzoSsg5R9Stocdz1-@git.foxminded.ua".insteadOf "https://git.foxminded.ua"
-    - go get git.foxminded.ua/foxstudent106264/tgapi@latest
+    - go get git.foxminded.ua/foxstudent106264/tgapi@dev
     - golangci-lint run -v
     
