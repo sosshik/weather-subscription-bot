@@ -50,16 +50,19 @@ func main() {
 	app := App{
 		config: *cfg,
 		tgapi: api.Api{
-			SendString: "https://api.telegram.org/bot" + cfg.TelegramToken + "/sendMessage",
-			GetUpdStr:  "https://api.telegram.org/bot" + cfg.TelegramToken + "/getUpdates",
-			HTTPClient: &http.Client{},
+			SendMessageURL: "https://api.telegram.org/bot" + cfg.TelegramToken + "/sendMessage",
+			GetUpdatesURL:  "https://api.telegram.org/bot" + cfg.TelegramToken + "/getUpdates",
+			HTTPClient:     &http.Client{},
 		},
 		weather:  *weatherapi.GetWeatherApi(),
-		database: database.Database{Db: mongoClient, DbName: "testdb", Collection: "subscriptions", Subscriptions: make(map[int]*database.Subscription)},
+		database: database.Database{Db: mongoClient, DbName: "testdb", Collection: "subscriptions"},
 	}
 	app.tgapi.UserInput = &app.database
 
+	app.tgapi.AddCallback(app.database.HandleStartCommand, "/start")
 	app.tgapi.AddCallback(app.database.HandleSubscribeCommand, "/subscribe")
+	app.tgapi.AddCallback(app.database.HandleSetTimeCommand, "/settime")
+	app.tgapi.AddCallback(app.database.HandleSetLocationCommand, "/setlocation")
 	app.tgapi.AddCallback(app.database.HandleUnsubscribeCommand, "/unsubscribe")
 
 	server := &http.Server{

@@ -3,7 +3,7 @@ module git.foxminded.ua/foxstudent106264/task-2.5
 go 1.21.0
 
 require (
-	git.foxminded.ua/foxstudent106264/tgapi v0.0.0-20231126155540-b9261662935c
+	git.foxminded.ua/foxstudent106264/tgapi v0.0.0-20231127142429-e5f9ddc98cf2
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/joho/godotenv v1.5.1
 	github.com/sirupsen/logrus v1.9.3

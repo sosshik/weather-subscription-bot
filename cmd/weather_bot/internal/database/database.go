@@ -14,15 +14,103 @@ import (
 )
 
 type Database struct {
-	Db            *mongo.Client
-	DbName        string
-	Collection    string
-	Subscriptions map[int]*Subscription
+	Db         *mongo.Client
+	DbName     string
+	Collection string
+}
+
+func (d *Database) HandleStartCommand(a *api.Api, update api.Update) {
+
+	subscription := Subscription{}
+	collection := d.Db.Database(d.DbName).Collection(d.Collection)
+	err := collection.FindOne(context.Background(), bson.M{"chat_id": update.Message.Chat.Id}).Decode(&subscription)
+	if err == nil {
+		switch subscription.UserState {
+		case wantsToSubscribe:
+			keyboard := a.CreateKeyboard([]string{"/settime"})
+			a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! You aready started subscription process. Please write /settime command and enter preferred notification time.*", update.Message.Chat.Id, keyboard)
+			return
+		case timeAdded:
+			keyboard := a.CreateKeyboard([]string{"/setlocation"})
+			a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! You aready started subscription process. Please write /setlocation command and enter send yoour loaction using Telegram's built-in function.*", update.Message.Chat.Id, keyboard)
+			return
+		case subscribed:
+			keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
+			a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*Hello, that's Weather Forecast Bot! You are already subscribed. Time is set: %s. If you want to unsubscribe write /unsubscribe command*", subscription.Time), update.Message.Chat.Id, keyboard)
+			return
+		}
+	}
+	keyboard := a.CreateKeyboard([]string{"/subscribe"})
+	a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! Write /subscribe to subscribe for weather forecast.*", update.Message.Chat.Id, keyboard)
+
 }
 
 func (d *Database) HandleSubscribeCommand(a *api.Api, update api.Update) {
 
-	a.SendMessageWithLog("Enter your preferred notification time in the format HH:MM and send your location using Telegram's built-in function", update.Message.Chat.Id)
+	subscription := Subscription{}
+	collection := d.Db.Database(d.DbName).Collection(d.Collection)
+	err := collection.FindOne(context.Background(), bson.M{"chat_id": update.Message.Chat.Id}).Decode(&subscription)
+	if err == nil {
+		keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
+		a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*You are already subscribed. Time is set: %s. If you want to unsubscribe write /unsubscribe command*", subscription.Time), update.Message.Chat.Id, keyboard)
+		return
+	}
+
+	subscription.ChatID = update.Message.Chat.Id
+	subscription.UserState = wantsToSubscribe
+	_, err = collection.InsertOne(context.Background(), subscription)
+	if err != nil {
+		log.Warnf("unable to insert user into collection: %s", err)
+		return
+	}
+	keyboard := a.CreateKeyboard([]string{"/settime"})
+	a.SendMessageAndKeyboardWithLog("*Please write /settime command and after that enter your preferred notification time in the format HH:MM.*", update.Message.Chat.Id, keyboard)
+}
+
+func (d *Database) HandleSetTimeCommand(a *api.Api, update api.Update) {
+	subscription := Subscription{}
+	collection := d.Db.Database(d.DbName).Collection(d.Collection)
+	err := collection.FindOne(context.Background(), bson.M{"chat_id": update.Message.Chat.Id}).Decode(&subscription)
+	if err != nil {
+		keyboard := a.CreateKeyboard([]string{"/subscribe"})
+		a.SendMessageAndKeyboardWithLog("*You didn't start subscripton process. Please write /subscribe to start subscription*", update.Message.Chat.Id, keyboard)
+		return
+	}
+
+	switch subscription.UserState {
+	case wantsToSubscribe:
+		a.SendMessageWithLog("*Please enter your preferred notification time in the format HH:MM.*", update.Message.Chat.Id)
+	case timeAdded:
+		keyboard := a.CreateKeyboard([]string{"/setlocation"})
+		a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*You already set time: %s. Please write /setlocation and send your location to continue subscription process.*", subscription.Time), update.Message.Chat.Id, keyboard)
+		return
+	case subscribed:
+		keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
+		a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*You are already subscribed. Time is set: %s. If you want to unsubscribe write /unsubscribe command*", subscription.Time), update.Message.Chat.Id, keyboard)
+	}
+
+}
+
+func (d *Database) HandleSetLocationCommand(a *api.Api, update api.Update) {
+	subscription := Subscription{}
+	collection := d.Db.Database(d.DbName).Collection(d.Collection)
+	err := collection.FindOne(context.Background(), bson.M{"chat_id": update.Message.Chat.Id}).Decode(&subscription)
+	if err != nil {
+		keyboard := a.CreateKeyboard([]string{"/subscribe"})
+		a.SendMessageAndKeyboardWithLog("*You didn't start subscripton process. Please write /subscribe to start subscription*", update.Message.Chat.Id, keyboard)
+		return
+	}
+
+	switch subscription.UserState {
+	case wantsToSubscribe:
+		keyboard := a.CreateKeyboard([]string{"/settime"})
+		a.SendMessageAndKeyboardWithLog("*You didn't set the time yet. Please write /settime command to set the time.*", update.Message.Chat.Id, keyboard)
+	case timeAdded:
+		a.SendMessageWithLog("*Please send your location using Telegram's built-in function.*", update.Message.Chat.Id)
+	case subscribed:
+		keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
+		a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*You are already subscribed. Time is set: %s. If you want to unsubscribe write /unsubscribe command*", subscription.Time), update.Message.Chat.Id, keyboard)
+	}
 
 }
 
@@ -32,66 +120,47 @@ func (d *Database) HandleUnsubscribeCommand(a *api.Api, update api.Update) {
 	err := collection.FindOneAndDelete(context.Background(), bson.M{"chat_id": update.Message.Chat.Id}).Decode(&subscription)
 
 	if err == nil {
-		a.SendMessageWithLog("You have been unsubscribed.", update.Message.Chat.Id)
+		a.SendMessageWithLog("*You have been unsubscribed.*", update.Message.Chat.Id)
 	} else {
-		a.SendMessageWithLog("You are not subscribed.", update.Message.Chat.Id)
+		a.SendMessageWithLog("*You are not subscribed.*", update.Message.Chat.Id)
 	}
 }
 
 func (d *Database) HandleUserInput(a *api.Api, update api.Update) {
-	if update.Message.Text != "" {
-		if _, ok := d.Subscriptions[update.Message.Chat.Id]; !ok {
-			d.Subscriptions[update.Message.Chat.Id] = &Subscription{}
-			d.Subscriptions[update.Message.Chat.Id].ChatID = update.Message.Chat.Id
-		}
-		_, err := time.Parse("15:04", update.Message.Text)
-		if err != nil {
-			a.SendMessageWithLog("Invalid time format. Please write /subscribe again and use HH:MM format.", update.Message.Chat.Id)
-			return
-		}
-
-		d.Subscriptions[update.Message.Chat.Id].Time = update.Message.Text
-
-		if newSubscription.Latitude == 0 && newSubscription.Longitude == 0 {
-			a.SendMessageWithLog("Please send your location using Telegram's built-in function.", update.Message.Chat.Id)
-		}
-
-	} else if update.Message.Location.Longitude != 0 && update.Message.Location.Latitude != 0 {
-
-		if _, ok := d.Subscriptions[update.Message.Chat.Id]; !ok {
-			d.Subscriptions[update.Message.Chat.Id] = &Subscription{}
-			d.Subscriptions[update.Message.Chat.Id].ChatID = update.Message.Chat.Id
-		}
-
-		d.Subscriptions[update.Message.Chat.Id].Longitude = update.Message.Location.Longitude
-		d.Subscriptions[update.Message.Chat.Id].Latitude = update.Message.Location.Latitude
-
-		if d.Subscriptions[update.Message.Chat.Id].Time == "" {
-			a.SendMessageWithLog("Please your preferred notification time in the format HH:MM.", update.Message.Chat.Id)
-		}
-
+	subscription := Subscription{}
+	collection := d.Db.Database(d.DbName).Collection(d.Collection)
+	err := collection.FindOne(context.Background(), bson.M{"chat_id": update.Message.Chat.Id}).Decode(&subscription)
+	if err != nil {
+		keyboard := a.CreateKeyboard([]string{"/subscribe"})
+		a.SendMessageAndKeyboardWithLog("*You didn't start subscripton process. Please write /subscribe to start subscription*", update.Message.Chat.Id, keyboard)
+		return
 	}
 
-	if d.Subscriptions[update.Message.Chat.Id].Time != "" && d.Subscriptions[update.Message.Chat.Id].Longitude != 0 && d.Subscriptions[update.Message.Chat.Id].Latitude != 0 {
-
-		subscription := Subscription{}
-		collection := d.Db.Database(d.DbName).Collection(d.Collection)
-		err := collection.FindOne(context.Background(), bson.M{"chat_id": update.Message.Chat.Id}).Decode(&subscription)
-
-		if err == nil {
-			a.SendMessageWithLog(fmt.Sprintf("You are already subscribed. Time is set: %s", subscription.Time), update.Message.Chat.Id)
-			return
-		}
-
-		_, err = collection.InsertOne(context.Background(), d.Subscriptions[update.Message.Chat.Id])
+	switch subscription.UserState {
+	case wantsToSubscribe:
+		_, err := time.Parse("15:04", update.Message.Text)
 		if err != nil {
-			log.Warnf("Unable to subscribe user with chat id%d: %s", update.Message.Chat.Id, err)
-			a.SendMessageWithLog("Unable to subscribe you", update.Message.Chat.Id)
+			a.SendMessageWithLog("*Invalid time format. Please write time again and use HH:MM format.*", update.Message.Chat.Id)
 			return
-		} else {
-			log.Warnf("chat id %d was succesfully subscribed for time %s", update.Message.Chat.Id, newSubscription.Time)
-			a.SendMessageWithLog(fmt.Sprintf("You succesfully subscribed for time %s", d.Subscriptions[update.Message.Chat.Id].Time), update.Message.Chat.Id)
 		}
+		subscription.Time = update.Message.Text
+		subscription.UserState = timeAdded
+		collection.FindOneAndReplace(context.Background(), bson.M{"chat_id": update.Message.Chat.Id}, subscription)
+		keyboard := a.CreateKeyboard([]string{"/setlocation"})
+		a.SendMessageAndKeyboardWithLog("*Time was set. Please write /setlocation and send your location using Telegram's built-in function.*", update.Message.Chat.Id, keyboard)
+		return
+	case timeAdded:
+		if update.Message.Location.Longitude != 0 && update.Message.Location.Latitude != 0 {
+			subscription.Longitude = update.Message.Location.Longitude
+			subscription.Latitude = update.Message.Location.Latitude
+			subscription.UserState = subscribed
+			collection.FindOneAndReplace(context.Background(), bson.M{"chat_id": update.Message.Chat.Id}, subscription)
+			keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
+			a.SendMessageAndKeyboardWithLog("*You successfully subscribed! If you want to unsubscribe write /unsubscribe command*", update.Message.Chat.Id, keyboard)
+		}
+	case subscribed:
+		keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
+		a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*You are already subscribed. Time is set: %s. If you want to unsubscribe write /unsubscribe command*", subscription.Time), update.Message.Chat.Id, keyboard)
 	}
 }
 
@@ -118,19 +187,21 @@ func (d *Database) NotifyUser(a *api.Api, w weatherapi.WeatherAPI) {
 			subscriptions = append(subscriptions, elem)
 		}
 		for _, sub := range subscriptions {
-			notif, err := time.Parse("15:04", sub.Time)
-			if err != nil {
-				log.Warnf("unable to parse time for chat id %d: %s", sub.ChatID, err)
-				continue
-			}
-			if time.Now().Hour() == notif.UTC().Hour() && time.Now().UTC().Minute() == notif.UTC().Minute() {
-
-				message, err := w.GetForecast(sub.Latitude, sub.Longitude)
+			if sub.UserState == subscribed {
+				notif, err := time.Parse("15:04", sub.Time)
 				if err != nil {
-					log.Warnf("unable to get forecast for chat id %d: %s", sub.ChatID, err)
+					log.Warnf("unable to parse time for chat id %d: %s", sub.ChatID, err)
 					continue
 				}
-				a.SendMessageWithLog(message, sub.ChatID)
+				if time.Now().Hour() == notif.UTC().Hour() && time.Now().UTC().Minute() == notif.UTC().Minute() {
+
+					message, err := w.GetForecast(sub.Latitude, sub.Longitude)
+					if err != nil {
+						log.Warnf("unable to get forecast for chat id %d: %s", sub.ChatID, err)
+						continue
+					}
+					a.SendMessageWithLog(message, sub.ChatID)
+				}
 			}
 		}
 		time.Sleep(59 * time.Second)
