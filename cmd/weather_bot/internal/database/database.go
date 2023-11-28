@@ -24,7 +24,10 @@ func ConnectionCheck(client *mongo.Client, clientOptions *options.ClientOptions)
 		time.Sleep(5 * time.Second)
 		if err := client.Ping(context.Background(), nil); err != nil {
 			log.Warnf("Lost connection to MongoDB. Attempting to reconnect.")
-			client.Disconnect(context.Background())
+			err := client.Disconnect(context.Background())
+			if err != nil {
+				log.Panic(err)
+			}
 			client, err = mongo.Connect(context.Background(), clientOptions)
 			if err != nil {
 				log.Warnf("Failed to reconnect: %s", err)
