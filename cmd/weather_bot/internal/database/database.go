@@ -26,7 +26,8 @@ func ConnectionCheck(client *mongo.Client, clientOptions *options.ClientOptions)
 			log.Warnf("Lost connection to MongoDB. Attempting to reconnect.")
 			err := client.Disconnect(context.Background())
 			if err != nil {
-				log.Panic(err)
+				log.Warnf("Error while disconecting: %s", err)
+				continue
 			}
 			client, err = mongo.Connect(context.Background(), clientOptions)
 			if err != nil {
@@ -44,28 +45,32 @@ func (d *Database) HandleStartCommand(a *api.Api, update api.Update) {
 	collection := d.Db.Database(d.DbName).Collection(d.Collection)
 	err := collection.FindOne(context.Background(), bson.M{"chat_id": update.Message.Chat.Id}).Decode(&subscription)
 
-	if err == nil {
-		switch subscription.UserState {
-		case wantsToSubscribe:
-			keyboard := a.CreateKeyboard([]string{"/settime"})
-			a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! You aready started subscription process. Please write /settime command and enter preferred notification time.*", update.Message.Chat.Id, keyboard)
-			return
-		case timeAdded:
-			keyboard := a.CreateKeyboard([]string{"/setlocation"})
-			a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! You aready started subscription process. Please write /setlocation command and enter send yoour loaction using Telegram's built-in function.*", update.Message.Chat.Id, keyboard)
-			return
-		case subscribed:
-			keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
-			a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*Hello, that's Weather Forecast Bot! You are already subscribed. Time is set: %s. If you want to unsubscribe write /unsubscribe command*", subscription.Time), update.Message.Chat.Id, keyboard)
+	if err != nil {
+
+		if err == mongo.ErrNoDocuments {
+			keyboard := a.CreateKeyboard([]string{"/subscribe"})
+			a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! Write /subscribe to subscribe for weather forecast.*", update.Message.Chat.Id, keyboard)
 			return
 		}
-	} else if err == mongo.ErrNoDocuments {
-		keyboard := a.CreateKeyboard([]string{"/subscribe"})
-		a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! Write /subscribe to subscribe for weather forecast.*", update.Message.Chat.Id, keyboard)
-		return
-	} else {
+
 		keyboard := a.CreateKeyboard([]string{"/start"})
 		a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! Error happend, please write /start again.*", update.Message.Chat.Id, keyboard)
+		return
+
+	}
+
+	switch subscription.UserState {
+	case wantsToSubscribe:
+		keyboard := a.CreateKeyboard([]string{"/settime"})
+		a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! You aready started subscription process. Please write /settime command and enter preferred notification time.*", update.Message.Chat.Id, keyboard)
+		return
+	case timeAdded:
+		keyboard := a.CreateKeyboard([]string{"/setlocation"})
+		a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! You aready started subscription process. Please write /setlocation command and enter send yoour loaction using Telegram's built-in function.*", update.Message.Chat.Id, keyboard)
+		return
+	case subscribed:
+		keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
+		a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*Hello, that's Weather Forecast Bot! You are already subscribed. Time is set: %s. If you want to unsubscribe write /unsubscribe command*", subscription.Time), update.Message.Chat.Id, keyboard)
 		return
 	}
 

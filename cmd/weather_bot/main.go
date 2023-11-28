@@ -45,17 +45,18 @@ func main() {
 	clientOptions := options.Client().ApplyURI(cfg.MongoAddr)
 	mongoClient, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
-		log.Fatal(err)
+		log.Warnf("Error while connecting to DB: %s", err)
 	}
 
 	err = mongoClient.Ping(context.Background(), nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Warnf("Error while pinging DB: %s", err)
+	} else {
+		fmt.Println("Connected to MongoDB!")
 	}
 
-	fmt.Println("Connected to MongoDB!")
-
 	defer func() {
+
 		if err := mongoClient.Disconnect(context.Background()); err != nil {
 			log.Fatal(err)
 		}
