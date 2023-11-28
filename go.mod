@@ -3,7 +3,7 @@ module git.foxminded.ua/foxstudent106264/task-2.5
 go 1.21.0
 
 require (
-	git.foxminded.ua/foxstudent106264/tgapi v0.0.0-20231127142429-e5f9ddc98cf2
+	git.foxminded.ua/foxstudent106264/tgapi v0.1.1
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/joho/godotenv v1.5.1
 	github.com/sirupsen/logrus v1.9.3
@@ -24,7 +24,7 @@ require (
 	go.mongodb.org/mongo-driver v1.13.0 // indirect
 	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
-	golang.org/x/sys v0.14.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

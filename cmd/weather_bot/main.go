@@ -42,10 +42,27 @@ func init() {
 func main() {
 	log.Info("main app started")
 	cfg := config.GetConfig()
-	mongoClient, err := mongo.Connect(context.Background(), options.Client().ApplyURI(cfg.MongoAddr))
+	clientOptions := options.Client().ApplyURI(cfg.MongoAddr)
+	mongoClient, err := mongo.Connect(context.Background(), clientOptions)
 	if err != nil {
-		log.Panic(err)
+		log.Fatal(err)
 	}
+
+	err = mongoClient.Ping(context.Background(), nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Connected to MongoDB!")
+
+	defer func() {
+		if err := mongoClient.Disconnect(context.Background()); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("Disconnected from MongoDB.")
+	}()
+
+	go database.ConnectionCheck(mongoClient, clientOptions)
 
 	app := App{
 		config: *cfg,

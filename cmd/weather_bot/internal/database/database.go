@@ -19,11 +19,28 @@ type Database struct {
 	Collection string
 }
 
+func ConnectionCheck(client *mongo.Client, clientOptions *options.ClientOptions) {
+	for {
+		time.Sleep(5 * time.Second)
+		if err := client.Ping(context.Background(), nil); err != nil {
+			log.Warnf("Lost connection to MongoDB. Attempting to reconnect.")
+			client.Disconnect(context.Background())
+			client, err = mongo.Connect(context.Background(), clientOptions)
+			if err != nil {
+				log.Warnf("Failed to reconnect: %s", err)
+			} else {
+				log.Infof("Reconnected to MongoDB!")
+			}
+		}
+	}
+}
+
 func (d *Database) HandleStartCommand(a *api.Api, update api.Update) {
 
 	subscription := Subscription{}
 	collection := d.Db.Database(d.DbName).Collection(d.Collection)
 	err := collection.FindOne(context.Background(), bson.M{"chat_id": update.Message.Chat.Id}).Decode(&subscription)
+
 	if err == nil {
 		switch subscription.UserState {
 		case wantsToSubscribe:
@@ -39,9 +56,15 @@ func (d *Database) HandleStartCommand(a *api.Api, update api.Update) {
 			a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*Hello, that's Weather Forecast Bot! You are already subscribed. Time is set: %s. If you want to unsubscribe write /unsubscribe command*", subscription.Time), update.Message.Chat.Id, keyboard)
 			return
 		}
+	} else if err == mongo.ErrNoDocuments {
+		keyboard := a.CreateKeyboard([]string{"/subscribe"})
+		a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! Write /subscribe to subscribe for weather forecast.*", update.Message.Chat.Id, keyboard)
+		return
+	} else {
+		keyboard := a.CreateKeyboard([]string{"/start"})
+		a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! Error happend, please write /start again.*", update.Message.Chat.Id, keyboard)
+		return
 	}
-	keyboard := a.CreateKeyboard([]string{"/subscribe"})
-	a.SendMessageAndKeyboardWithLog("*Hello, that's Weather Forecast Bot! Write /subscribe to subscribe for weather forecast.*", update.Message.Chat.Id, keyboard)
 
 }
 
@@ -80,6 +103,7 @@ func (d *Database) HandleSetTimeCommand(a *api.Api, update api.Update) {
 	switch subscription.UserState {
 	case wantsToSubscribe:
 		a.SendMessageWithLog("*Please enter your preferred notification time in the format HH:MM.*", update.Message.Chat.Id)
+		return
 	case timeAdded:
 		keyboard := a.CreateKeyboard([]string{"/setlocation"})
 		a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*You already set time: %s. Please write /setlocation and send your location to continue subscription process.*", subscription.Time), update.Message.Chat.Id, keyboard)
@@ -87,6 +111,7 @@ func (d *Database) HandleSetTimeCommand(a *api.Api, update api.Update) {
 	case subscribed:
 		keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
 		a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*You are already subscribed. Time is set: %s. If you want to unsubscribe write /unsubscribe command*", subscription.Time), update.Message.Chat.Id, keyboard)
+		return
 	}
 
 }
@@ -105,11 +130,14 @@ func (d *Database) HandleSetLocationCommand(a *api.Api, update api.Update) {
 	case wantsToSubscribe:
 		keyboard := a.CreateKeyboard([]string{"/settime"})
 		a.SendMessageAndKeyboardWithLog("*You didn't set the time yet. Please write /settime command to set the time.*", update.Message.Chat.Id, keyboard)
+		return
 	case timeAdded:
 		a.SendMessageWithLog("*Please send your location using Telegram's built-in function.*", update.Message.Chat.Id)
+		return
 	case subscribed:
 		keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
 		a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*You are already subscribed. Time is set: %s. If you want to unsubscribe write /unsubscribe command*", subscription.Time), update.Message.Chat.Id, keyboard)
+		return
 	}
 
 }
@@ -158,9 +186,11 @@ func (d *Database) HandleUserInput(a *api.Api, update api.Update) {
 			keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
 			a.SendMessageAndKeyboardWithLog("*You successfully subscribed! If you want to unsubscribe write /unsubscribe command*", update.Message.Chat.Id, keyboard)
 		}
+		return
 	case subscribed:
 		keyboard := a.CreateKeyboard([]string{"/unsubscribe"})
 		a.SendMessageAndKeyboardWithLog(fmt.Sprintf("*You are already subscribed. Time is set: %s. If you want to unsubscribe write /unsubscribe command*", subscription.Time), update.Message.Chat.Id, keyboard)
+		return
 	}
 }
 
@@ -170,7 +200,8 @@ func (d *Database) NotifyUser(a *api.Api, w weatherapi.WeatherAPI) {
 		collection := d.Db.Database(d.DbName).Collection(d.Collection)
 		cur, err := collection.Find(context.TODO(), bson.D{{}}, findOptions)
 		if err != nil {
-			log.Panic("database error: %w", err)
+			log.Warnf("database error: %s", err)
+			return
 		}
 
 		var subscriptions []Subscription
