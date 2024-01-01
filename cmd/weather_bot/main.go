@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	"git.foxminded.ua/foxstudent106264/task-2.5/cmd/weather_bot/internal/database"
-	"git.foxminded.ua/foxstudent106264/task-2.5/pkg/config"
-	weatherapi "git.foxminded.ua/foxstudent106264/task-2.5/pkg/weather_api"
-	api "git.foxminded.ua/foxstudent106264/tgapi"
 	log "github.com/sirupsen/logrus"
+	api "github.com/sosshik/tg-api"
+	"github.com/sosshik/weather-subscription-bot/cmd/weather_bot/internal/database"
+	"github.com/sosshik/weather-subscription-bot/pkg/config"
+	weatherapi "github.com/sosshik/weather-subscription-bot/pkg/weather_api"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )

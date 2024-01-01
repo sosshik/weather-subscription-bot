@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	weatherapi "git.foxminded.ua/foxstudent106264/task-2.5/pkg/weather_api"
-	api "git.foxminded.ua/foxstudent106264/tgapi"
 	log "github.com/sirupsen/logrus"
+	api "github.com/sosshik/tg-api"
+	weatherapi "github.com/sosshik/weather-subscription-bot/pkg/weather_api"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"

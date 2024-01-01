@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"git.foxminded.ua/foxstudent106264/task-2.5/pkg/weather_api/mocks"
+	"github.com/sosshik/weather-subscription-bot/pkg/weather_api/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )

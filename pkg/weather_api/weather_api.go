@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"git.foxminded.ua/foxstudent106264/task-2.5/pkg/config"
-	api "git.foxminded.ua/foxstudent106264/tgapi"
 	log "github.com/sirupsen/logrus"
+	api "github.com/sosshik/tg-api"
+	"github.com/sosshik/weather-subscription-bot/pkg/config"
 )
 
 type HTTPClient interface {
